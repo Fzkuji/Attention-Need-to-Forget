@@ -79,7 +79,7 @@ def apply_custom_stretching(matrix):
     return stretched
 
 
-def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_tokens=None, font_size=32):
+def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_tokens=None, font_size=48):
     """Create lower triangular heatmap with custom styling
     
     Args:
@@ -106,7 +106,7 @@ def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_toke
     fig, ax = plt.subplots(figsize=(fig_size, fig_size))
 
     # Use inferno colormap
-    cmap = plt.get_cmap('plasma')
+    cmap = plt.get_cmap('coolwarm')
     cmap.set_bad('white')  # Set masked values to white
 
     # Plot heatmap with stretched values
@@ -121,7 +121,7 @@ def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_toke
     # ax.set_ylabel('Position', fontsize=font_size)
 
     # Set ticks
-    tick_positions = np.arange(0, len(matrix), 5)
+    tick_positions = np.arange(0, len(matrix), 10)
     ax.set_xticks(tick_positions)
     ax.set_yticks(tick_positions)
     ax.set_xticklabels(tick_positions, fontsize=font_size)
@@ -130,7 +130,7 @@ def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_toke
     # Add colorbar with custom scale labels (thinner width, same height)
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="3%", pad=0.1)
+    cax = divider.append_axes("right", size="3%", pad=0.4)
     cbar = plt.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=font_size)
     # Remove colorbar borders
@@ -159,7 +159,7 @@ def plot_lower_triangular_heatmap(matrix, output_file=None, title=None, max_toke
 
     # Save or show
     if output_file:
-        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        plt.savefig(output_file, dpi=150, bbox_inches='tight', format='pdf')
         print(f"Figure saved as {output_file}")
     else:
         plt.show()
@@ -190,7 +190,7 @@ if __name__ == "__main__":
         layer_str = f"layer{args.layer}" if args.layer is not None else "layer0"
         head_str = f"head{args.head}"
         tokens_str = f"_tokens{args.max_tokens}" if args.max_tokens else ""
-        args.output = f"attention_heatmap_{layer_str}_{head_str}{tokens_str}.png"
+        args.output = f"attention_heatmap_{layer_str}_{head_str}{tokens_str}.pdf"
 
     try:
         # Read the attention matrix for the specified layer and head

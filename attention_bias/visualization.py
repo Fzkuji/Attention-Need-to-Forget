@@ -137,12 +137,16 @@ def visualize_bias_diagonals_lines(model, positions_to_show=None, skip_layers=1,
 
             # 限制显示的位置数
             if isinstance(positions_to_show, int):
-                display_len = min(positions_to_show, bias_diagonals.shape[1])
+                actual_bias_len = bias_diagonals.shape[1]
+                display_len = min(actual_bias_len, bias_diagonals.shape[1])
                 x_positions = np.arange(1, display_len + 1)  # 从1开始，避免log(0)
                 bias_to_plot = bias_diagonals[:, :display_len]
+                # x轴显示范围使用positions_to_show，而不是实际的bias长度
+                x_axis_max = positions_to_show
             else:
                 x_positions = np.array(positions_to_show) + 1
                 bias_to_plot = bias_diagonals[:, positions_to_show]
+                x_axis_max = max(x_positions)
 
             # 为每个头绘制一条线，使用一致的颜色
             for head_idx in range(num_heads):
@@ -155,7 +159,7 @@ def visualize_bias_diagonals_lines(model, positions_to_show=None, skip_layers=1,
             # 设置x轴为log刻度
             if use_log_scale:
                 ax.set_xscale('log')
-                ax.set_xlim(1, display_len if isinstance(positions_to_show, int) else max(x_positions))
+                ax.set_xlim(1, x_axis_max)  # 使用x_axis_max而不是display_len
 
             # 统一y轴范围
             ax.set_ylim(y_min, y_max)

@@ -232,8 +232,8 @@ class SWATAttention(nn.Module):
         v = v.transpose(1, 2).contiguous()
 
         if self.use_flash:
-            # Lazy Attention Triton kernel
-            from adasplash.lazy_attention_triton import lazy_attention_triton
+            # Lazy Attention Triton kernel (from our repo)
+            from lazy_attention_triton import lazy_attention_triton
             out = lazy_attention_triton(q, k, v, self.bias.to(q.dtype), self.tau.to(q.dtype))
         else:
             # PyTorch naive (matching scratch branch implementation)

@@ -235,7 +235,9 @@ class SWATAttention(nn.Module):
         if self.use_flash:
             # Lazy Attention Triton kernel (from our repo)
             from lazy_attention_triton import lazy_attention_triton
-            out = lazy_attention_triton(q, k, v, self.bias.to(q.dtype), self.tau.to(q.dtype))
+            # bias_embed.weight is [max_bias_length, H], need to transpose to [H, max_bias_length]
+            bias = self.bias_embed.weight.t().to(q.dtype)
+            out = lazy_attention_triton(q, k, v, bias, self.tau.to(q.dtype))
         else:
             # PyTorch naive (matching scratch branch implementation)
             scale = self.head_dim ** -0.5

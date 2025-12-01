@@ -215,10 +215,11 @@ class SWATAttention(nn.Module):
         self.v_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
 
-        # Learnable bias and tau
-        self.bias = nn.Parameter(torch.zeros(config.num_heads, config.max_bias_length))
+        # Learnable bias using nn.Embedding (faster backward than nn.Parameter + indexing)
+        self.bias_embed = nn.Embedding(config.max_bias_length, config.num_heads)
+        nn.init.normal_(self.bias_embed.weight, mean=0.0, std=1e-3)
+        # tau for elastic softmax
         self.tau = nn.Parameter(torch.full((config.num_heads,), -1.0))
-        nn.init.normal_(self.bias, mean=0.0, std=1e-3)
 
     def forward(self, x):
         B, L, _ = x.shape
@@ -240,12 +241,14 @@ class SWATAttention(nn.Module):
             scale = self.head_dim ** -0.5
             scores = torch.matmul(q, k.transpose(-2, -1)) * scale
 
-            # Add distance-based bias (efficient version from scratch branch)
+            # Add distance-based bias using nn.Embedding (faster backward)
             rel_pos = torch.arange(L, device=x.device)[:, None] - torch.arange(L, device=x.device)[None, :]
             causal_mask = rel_pos >= 0  # for causal attention
             bias_mask = causal_mask & (rel_pos < self.max_bias_length)  # for bias (within window)
             indices = rel_pos.clamp(0, self.max_bias_length - 1)
-            bias_matrix = self.bias[:, indices] * bias_mask.to(scores.dtype)
+            # Embedding: [L, L] -> [L, L, H] -> [H, L, L]
+            bias_values = self.bias_embed(indices).permute(2, 0, 1)
+            bias_matrix = bias_values * bias_mask.to(scores.dtype)
             scores = scores + bias_matrix.unsqueeze(0)
 
             # Apply causal mask (NOT limited by max_bias_length!)

@@ -149,6 +149,10 @@ class EntmaxAttention(nn.Module):
 
     def _entmax_naive(self, scores, alpha=1.5):
         """Sparsemax approximation (entmax with α≈1.5)"""
+        # Convert to float32 for numerical stability
+        original_dtype = scores.dtype
+        scores = scores.float()
+
         B, H, M, N = scores.shape
         sorted_scores, _ = torch.sort(scores, dim=-1, descending=True)
         cumsum = torch.cumsum(sorted_scores, dim=-1)
@@ -159,7 +163,8 @@ class EntmaxAttention(nn.Module):
         tau_star = (scores.sum(dim=-1, keepdim=True) - 1) / k_support.float()
         output = torch.clamp(scores - tau_star, min=0)
         output = output / (output.sum(dim=-1, keepdim=True) + 1e-10)
-        return output
+
+        return output.to(original_dtype)
 
     def forward(self, x):
         B, L, _ = x.shape
@@ -255,8 +260,8 @@ class SWATAttention(nn.Module):
             attn = F.softmax(scores, dim=-1)
 
             # Elastic softmax: ReLU(attn + tau/i)
-            idx_i = torch.arange(1, L + 1, device=x.device, dtype=torch.float32)
-            tau_term = self.tau.view(1, -1, 1, 1) / idx_i.view(1, 1, L, 1)
+            idx_i = torch.arange(1, L + 1, device=x.device, dtype=attn.dtype)
+            tau_term = self.tau.to(attn.dtype).view(1, -1, 1, 1) / idx_i.view(1, 1, L, 1)
             attn = torch.relu(attn + tau_term)
 
             out = torch.matmul(attn, v)

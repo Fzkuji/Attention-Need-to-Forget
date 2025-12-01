@@ -248,7 +248,7 @@ class SWATAttention(nn.Module):
             in_window = (dist >= 0) & (dist < self.max_bias_length)
 
             bias_matrix = self.bias[:, dist_clamped]
-            bias_matrix = bias_matrix * in_window.float()
+            bias_matrix = bias_matrix * in_window.to(scores.dtype)
 
             scores = scores + bias_matrix.unsqueeze(0)
 

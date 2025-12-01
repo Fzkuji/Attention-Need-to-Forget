@@ -242,13 +242,14 @@ class SWATAttention(nn.Module):
 
             # Add distance-based bias (efficient version from scratch branch)
             rel_pos = torch.arange(L, device=x.device)[:, None] - torch.arange(L, device=x.device)[None, :]
-            valid_mask = (rel_pos >= 0) & (rel_pos < self.max_bias_length)
+            causal_mask = rel_pos >= 0  # for causal attention
+            bias_mask = causal_mask & (rel_pos < self.max_bias_length)  # for bias (within window)
             indices = rel_pos.clamp(0, self.max_bias_length - 1)
-            bias_matrix = self.bias[:, indices] * valid_mask.to(scores.dtype)
+            bias_matrix = self.bias[:, indices] * bias_mask.to(scores.dtype)
             scores = scores + bias_matrix.unsqueeze(0)
 
-            # Causal mask
-            scores = scores.masked_fill(~valid_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+            # Apply causal mask (NOT limited by max_bias_length!)
+            scores = scores.masked_fill(~causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
 
             # Softmax with float32 for numerical stability
             attn = F.softmax(scores, dim=-1, dtype=torch.float32).to(q.dtype)

@@ -236,33 +236,27 @@ class SWATAttention(nn.Module):
             from adasplash.lazy_attention_triton import lazy_attention_triton
             out = lazy_attention_triton(q, k, v, self.bias.to(q.dtype), self.tau.to(q.dtype))
         else:
-            # PyTorch naive
+            # PyTorch naive (matching scratch branch implementation)
             scale = self.head_dim ** -0.5
             scores = torch.matmul(q, k.transpose(-2, -1)) * scale
 
-            # Add distance-based bias
-            positions = torch.arange(L, device=x.device)
-            dist = positions.unsqueeze(1) - positions.unsqueeze(0)
-
-            dist_clamped = dist.clamp(0, self.max_bias_length - 1)
-            in_window = (dist >= 0) & (dist < self.max_bias_length)
-
-            bias_matrix = self.bias[:, dist_clamped]
-            bias_matrix = bias_matrix * in_window.to(scores.dtype)
-
+            # Add distance-based bias (efficient version from scratch branch)
+            rel_pos = torch.arange(L, device=x.device)[:, None] - torch.arange(L, device=x.device)[None, :]
+            valid_mask = (rel_pos >= 0) & (rel_pos < self.max_bias_length)
+            indices = rel_pos.clamp(0, self.max_bias_length - 1)
+            bias_matrix = self.bias[:, indices] * valid_mask.to(scores.dtype)
             scores = scores + bias_matrix.unsqueeze(0)
 
             # Causal mask
-            causal_mask = dist >= 0
-            scores = scores.masked_fill(~causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+            scores = scores.masked_fill(~valid_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
 
-            # Softmax
-            attn = F.softmax(scores, dim=-1)
+            # Softmax with float32 for numerical stability
+            attn = F.softmax(scores, dim=-1, dtype=torch.float32).to(q.dtype)
 
             # Elastic softmax: ReLU(attn + tau/i)
-            idx_i = torch.arange(1, L + 1, device=x.device, dtype=attn.dtype)
-            tau_term = self.tau.to(attn.dtype).view(1, -1, 1, 1) / idx_i.view(1, 1, L, 1)
-            attn = torch.relu(attn + tau_term)
+            tau = self.tau.view(1, -1, 1, 1)
+            i_positions = torch.arange(1, L + 1, device=x.device, dtype=attn.dtype).view(1, 1, -1, 1)
+            attn = F.relu(attn + tau / i_positions)
 
             out = torch.matmul(attn, v)
 

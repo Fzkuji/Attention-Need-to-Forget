@@ -112,16 +112,8 @@ class SoftmaxAttention(nn.Module):
 
         if self.use_flash:
             # Use Flash Attention
-            try:
-                from flash_attn import flash_attn_func
-                out = flash_attn_func(q, k, v, causal=True)
-            except ImportError:
-                # Fallback to SDPA
-                q = q.transpose(1, 2)
-                k = k.transpose(1, 2)
-                v = v.transpose(1, 2)
-                out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-                out = out.transpose(1, 2)
+            from flash_attn import flash_attn_func
+            out = flash_attn_func(q, k, v, causal=True)
         else:
             # PyTorch naive
             q = q.transpose(1, 2)  # B, H, L, D
@@ -418,18 +410,6 @@ def run_full_benchmark(config: ModelConfig, mode: str = "training") -> Dict[str,
         for impl_name, use_flash in implementations:
             key = f"{attn_name}-{impl_name}"
             print(f"\n[{key}]")
-
-            # Skip PyTorch naive for training if too slow
-            if not use_flash and backward and config.seq_len > 2048 and attn_name != "Softmax":
-                print(f"  Skipping (too slow for seq_len={config.seq_len})")
-                results[key] = {
-                    'total': float('nan'),
-                    'attention': float('nan'),
-                    'ffn': float('nan'),
-                    'attention_pct': float('nan'),
-                    'ffn_pct': float('nan'),
-                }
-                continue
 
             try:
                 # Create attention module
